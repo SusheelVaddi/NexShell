@@ -213,7 +213,6 @@
         .cmd { color: var(--accent-cyan); }
         .arg { color: #f0f6fc; }
         .op { color: var(--accent-purple); font-weight: bold; }
-        .comment { color: var(--text-muted); font-style: italic; }
 
         /* Architecture Diagram Flow */
         .flow-container {
@@ -221,24 +220,24 @@
             align-items: center;
             justify-content: space-between;
             margin: 20px 0;
-            gap: 12px;
+            gap: 10px;
         }
 
         .flow-step {
             background: rgba(88, 166, 255, 0.08);
             border: 1px solid rgba(88, 166, 255, 0.3);
             border-radius: 8px;
-            padding: 16px;
+            padding: 14px 10px;
             text-align: center;
             flex: 1;
             font-family: 'Fira Code', monospace;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: var(--accent-cyan);
         }
 
         .flow-arrow {
             color: var(--accent-green);
-            font-size: 1.4rem;
+            font-size: 1.2rem;
             font-weight: bold;
         }
 
@@ -369,26 +368,25 @@
                 <div class="card">
                     <h3 style="color: var(--accent-green);">📁 Built-in Commands</h3>
                     <ul>
-                        <li><code style="color: var(--accent-cyan);">pwd</code> — Print Working Directory</li>
-                        <li><code style="color: var(--accent-cyan);">cd [dir]</code> — Parent directory navigation</li>
-                        <li><code style="color: var(--accent-cyan);">mkdir [dir]</code> — Directory creation</li>
                         <li><code style="color: var(--accent-cyan);">exit</code> — Clean shell termination</li>
+                        <li><code style="color: var(--accent-cyan);">cd [dir]</code> — Runs in the parent process using <code style="color:#e6edf3;">chdir()</code></li>
                     </ul>
                 </div>
                 <div class="card">
-                    <h3 style="color: var(--accent-cyan);">🔄 I/O Redirection & Pipes</h3>
+                    <h3 style="color: var(--accent-cyan);">⚡ External Commands</h3>
                     <ul>
-                        <li><code style="color: var(--accent-purple);">&gt;</code> Output Redirection (<code style="color:#e6edf3;">ls &gt; file.txt</code>)</li>
-                        <li><code style="color: var(--accent-purple);">&lt;</code> Input Redirection (<code style="color:#e6edf3;">cat &lt; file.txt</code>)</li>
-                        <li><code style="color: var(--accent-purple);">|</code> Command Pipes (<code style="color:#e6edf3;">ls | grep test</code>)</li>
+                        <li>Executed via <code style="color:#e6edf3;">fork()</code> + <code style="color:#e6edf3;">execvp()</code></li>
+                        <li><code style="color: var(--accent-cyan);">pwd</code>, <code style="color: var(--accent-cyan);">ls</code>, <code style="color: var(--accent-cyan);">mkdir</code>, <code style="color: var(--accent-cyan);">cat</code>, <code style="color: var(--accent-cyan);">grep</code>, <code style="color: var(--accent-cyan);">sleep</code></li>
                     </ul>
                 </div>
                 <div class="card">
-                    <h3 style="color: var(--accent-amber);">⚡ Execution Engine</h3>
+                    <h3 style="color: var(--accent-purple);">🔄 I/O Redirection, Pipes & Async</h3>
                     <ul>
+                        <li><code style="color: var(--accent-purple);">&gt;</code> Output Redirection (<code style="color:#e6edf3;">open</code>, <code style="color:#e6edf3;">dup2</code>)</li>
+                        <li><code style="color: var(--accent-purple);">&lt;</code> Input Redirection (<code style="color:#e6edf3;">open</code>, <code style="color:#e6edf3;">dup2</code>)</li>
+                        <li><code style="color: var(--accent-purple);">|</code> Command Pipes (<code style="color:#e6edf3;">pipe</code>, <code style="color:#e6edf3;">dup2</code>)</li>
                         <li><code style="color: var(--accent-amber);">&amp;</code> Background Async Execution</li>
-                        <li>General command fallback (<code style="color:#e6edf3;">execvp</code>)</li>
-                        <li>Non-blocking zombie process cleanup via <code style="color:#e6edf3;">WNOHANG</code></li>
+                        <li>Non-blocking zombie reaping (<code style="color:#e6edf3;">WNOHANG</code>)</li>
                     </ul>
                 </div>
             </div>
@@ -406,13 +404,15 @@
             <div class="flow-container">
                 <div class="flow-step">1. User Input<br><small style="color:var(--text-muted)">fgets() & trim</small></div>
                 <span class="flow-arrow">→</span>
-                <div class="flow-step">2. Parse & Check<br><small style="color:var(--text-muted)">Built-ins / |, &gt;, &lt;, &amp;</small></div>
+                <div class="flow-step">2. Parse Input<br><small style="color:var(--text-muted)">Tokenize args</small></div>
                 <span class="flow-arrow">→</span>
-                <div class="flow-step">3. fork()<br><small style="color:var(--text-muted)">Spawn Child</small></div>
+                <div class="flow-step">3. Detect Operator<br><small style="color:var(--text-muted)">Built-ins / |, &gt;, &lt;, &amp;</small></div>
                 <span class="flow-arrow">→</span>
-                <div class="flow-step">4. dup2() / pipe()<br><small style="color:var(--text-muted)">Redirect FDs</small></div>
+                <div class="flow-step">4. pipe() / open()<br><small style="color:var(--text-muted)">Allocate FDs first</small></div>
                 <span class="flow-arrow">→</span>
-                <div class="flow-step">5. execvp()<br><small style="color:var(--text-muted)">Run Program</small></div>
+                <div class="flow-step">5. fork() & dup2()<br><small style="color:var(--text-muted)">Child STDIN/STDOUT</small></div>
+                <span class="flow-arrow">→</span>
+                <div class="flow-step">6. execvp()<br><small style="color:var(--text-muted)">Run Program</small></div>
             </div>
 
             <div class="grid-2" style="margin-top: 20px;">
@@ -420,29 +420,29 @@
                     <h3 style="color: var(--accent-cyan);">⚙️ Core POSIX System Calls</h3>
                     <ul>
                         <li><code style="color: var(--accent-green);">fork()</code> — Duplicates caller into a new child process</li>
-                        <li><code style="color: var(--accent-green);">execvp()</code> — Replaces child image with binary program</li>
-                        <li><code style="color: var(--accent-green);">wait() / waitpid()</code> — Synchronizes parent with child</li>
+                        <li><code style="color: var(--accent-green);">execvp()</code> — Replaces child image with target binary</li>
+                        <li><code style="color: var(--accent-green);">waitpid()</code> — Synchronizes parent with child (or <code style="color:#e6edf3;">WNOHANG</code>)</li>
                     </ul>
                 </div>
                 <div class="card">
                     <h3 style="color: var(--accent-purple);">🔀 File Descriptor Manipulation</h3>
                     <ul>
-                        <li><code style="color: var(--accent-purple);">pipe()</code> — Connects STDOUT of left child to STDIN of right child</li>
-                        <li><code style="color: var(--accent-purple);">dup2()</code> — Overwrites file descriptors 0 (stdin) or 1 (stdout)</li>
+                        <li><code style="color: var(--accent-purple);">pipe()</code> — Created before child processes to form data channel</li>
+                        <li><code style="color: var(--accent-purple);">dup2()</code> — Overwrites standard input (0) or output (1)</li>
                         <li><code style="color: var(--accent-purple);">chdir()</code> — Changes shell directory inside parent process</li>
                     </ul>
                 </div>
             </div>
         </div>
 
-        <!-- SLIDE 4: LIVE DEMO / RESULTS -->
+        <!-- SLIDE 4: DEMO COMMANDS -->
         <div class="slide" id="slide-4">
             <div class="slide-header">
                 <span class="badge">Slide 04 // Demonstration</span>
                 <span class="slide-counter">04 / 05</span>
             </div>
-            <h1 class="slide-title">Live Shell Execution Sequence</h1>
-            <p class="slide-subtitle">Tested Terminal Commands & Actual System Output</p>
+            <h1 class="slide-title">Demo Commands</h1>
+            <p class="slide-subtitle">Tested Live Execution Sequence</p>
 
             <div class="grid-2">
                 <div class="terminal">
@@ -454,23 +454,16 @@
                     </div>
                     <div class="terminal-body">
 <span class="prompt">NexShell></span> <span class="cmd">pwd</span>
-/home/user/NexShell
-
-<span class="prompt">NexShell></span> <span class="cmd">mkdir</span> <span class="arg">demo2</span>
-<span class="prompt">NexShell></span> <span class="cmd">cd</span> <span class="arg">demo2</span>
+<span class="prompt">NexShell></span> <span class="cmd">ls</span>
+<span class="prompt">NexShell></span> <span class="cmd">mkdir</span> <span class="arg">demo</span>
+<span class="prompt">NexShell></span> <span class="cmd">cd</span> <span class="arg">demo</span>
+<span class="prompt">NexShell></span> <span class="cmd">pwd</span>
 <span class="prompt">NexShell></span> <span class="cmd">cd</span> <span class="arg">..</span>
-
 <span class="prompt">NexShell></span> <span class="cmd">ls</span> <span class="op">></span> <span class="arg">files.txt</span>
 <span class="prompt">NexShell></span> <span class="cmd">cat</span> <span class="op"><</span> <span class="arg">files.txt</span>
-main.c
-files.txt
-
 <span class="prompt">NexShell></span> <span class="cmd">ls</span> <span class="op">|</span> <span class="cmd">grep</span> <span class="arg">test</span>
-test.txt
-
 <span class="prompt">NexShell></span> <span class="cmd">sleep</span> <span class="arg">10</span> <span class="op">&</span>
-[Background process started: PID 18492]
-
+<span class="prompt">NexShell></span> <span class="cmd">pwd</span>
 <span class="prompt">NexShell></span> <span class="cmd">exit</span>
                     </div>
                 </div>
@@ -478,8 +471,9 @@ test.txt
                 <div class="card" style="display:flex; flex-direction:column; justify-content:center;">
                     <h3 style="color: var(--accent-cyan); margin-bottom: 16px;">💡 Key Captions & Behavior</h3>
                     <ul style="line-height: 1.8;">
-                        <li><strong>Redirection (<code style="color: var(--accent-purple);">&gt;</code> / <code style="color: var(--accent-purple);">&lt;</code>)</strong>: Uses <code style="color:#e6edf3;">open()</code> and <code style="color:#e6edf3;">dup2()</code> to route command input/output directly to files.</li>
-                        <li><strong>Command Pipes (<code style="color: var(--accent-purple);">|</code>)</strong>: Spawns two child processes connected via a POSIX pipe data channel.</li>
+                        <li><strong>Built-ins (<code style="color: var(--accent-cyan);">cd</code> / <code style="color: var(--accent-cyan);">exit</code>)</strong>: Executed in the parent process using <code style="color:#e6edf3;">chdir()</code>.</li>
+                        <li><strong>Redirection (<code style="color: var(--accent-purple);">&gt;</code> / <code style="color: var(--accent-purple);">&lt;</code>)</strong>: Uses <code style="color:#e6edf3;">open()</code> and <code style="color:#e6edf3;">dup2()</code> to route command input/output.</li>
+                        <li><strong>Command Pipes (<code style="color: var(--accent-purple);">|</code>)</strong>: Allocates <code style="color:#e6edf3;">pipe()</code> before spawning children connected via stream descriptors.</li>
                         <li><strong>Background Execution (<code style="color: var(--accent-amber);">&amp;</code>)</strong>: Strips <code style="color:#e6edf3;">&amp;</code>, forks asynchronously, and returns the <code style="color: var(--accent-green);">NexShell&gt;</code> prompt immediately.</li>
                     </ul>
                 </div>

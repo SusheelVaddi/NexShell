@@ -8,7 +8,7 @@ Command-line shells are a fundamental interface in Unix-like operating systems, 
 ## Project Overview
 **NexShell** is an educational, simplified Unix-like command-line interpreter written in C for Linux and WSL (Windows Subsystem for Linux) environments. It implements a standard Read-Eval-Print Loop (REPL) interface that reads user commands, tokenizes arguments, and interacts directly with the Linux kernel via native POSIX system calls.
 
-NexShell demonstrates fundamental OS principles including process creation (`fork`), program execution (`execvp`), process synchronization (`wait`/`waitpid`), file descriptor redirection (`dup2`/`open`), and inter-process communication (`pipe`).
+NexShell demonstrates fundamental OS principles including process creation (`fork`), program execution (`execvp`), process synchronization (`waitpid`), file descriptor redirection (`dup2`/`open`), and inter-process communication (`pipe`).
 
 ---
 
@@ -16,15 +16,13 @@ NexShell demonstrates fundamental OS principles including process creation (`for
 - **Prompt Display**: Interactive shell prompt (`NexShell> `).
 - **Built-in Commands**:
   - `exit`: Cleanly terminates the shell session.
-  - `cd`: Changes current working directory in the parent process (supports default `$HOME`).
-  - `pwd`: Displays current working directory path.
-  - `mkdir`: Creates new directories.
-- **General Command Execution**: Executes standard external Linux utilities (`ls`, `cat`, `grep`, `sleep`, `sort`, etc.) using `fork()`, `execvp()`, and `wait()`.
+  - `cd`: Changes current working directory in the parent process using `chdir()` (supports default `$HOME`).
+- **External Command Execution**: Executes standard external Linux commands (`pwd`, `ls`, `mkdir`, `cat`, `grep`, `sleep`, `sort`, etc.) by spawning child processes using `fork()`, `execvp()`, and `waitpid()`.
 - **Output Redirection (`>`)**: Redirects standard output to write or truncate a destination file.
 - **Input Redirection (`<`)**: Redirects standard input to read data from a file.
-- **Command Piping (`|`)**: Connects the output of one process directly to the input of another via POSIX pipes.
-- **Background Execution (`&`)**: Asynchronously executes commands without blocking the interactive shell prompt.
-- **Non-blocking Zombie Cleanup**: Periodically reaps terminated background child processes using `waitpid(-1, NULL, WNOHANG)` to prevent memory/process table leaks.
+- **Command Piping (`|`)**: Connects the output of a left child process directly to the input of a right child process via POSIX `pipe()`.
+- **Background Execution (`&`)**: Asynchronously executes commands without blocking the parent shell prompt.
+- **Non-blocking Zombie Cleanup**: Periodically reaps terminated background child processes using `waitpid(-1, NULL, WNOHANG)` to prevent memory and process table leaks.
 
 ---
 
@@ -33,15 +31,15 @@ NexShell demonstrates fundamental OS principles including process creation (`for
 2. **Parsing & Cleanup**: Trailing newlines and extra whitespace are removed via custom string trimming.
 3. **Built-in Handling**: Commands like `exit` and `cd` are executed directly within the parent process (since `cd` must alter the shell's own working directory via `chdir()`).
 4. **Operator Interception**:
-   - **`&` (Background)**: Strips `&` from the end of the input, sets a background flag, and forks the child process without calling a blocking `wait()`.
-   - **`|` (Pipe)**: Creates a pipe (`pipe_fd[2]`), forks two child processes, uses `dup2()` to connect the left child's stdout to the right child's stdin, and executes both concurrently.
+   - **`&` (Background)**: Strips `&` from the end of the input, sets a background flag, and forks the child process without calling a blocking `waitpid()`.
+   - **`|` (Pipe)**: Allocates a pipe (`pipe_fd[2]`), forks two child processes, uses `dup2()` to connect the left child's stdout to the right child's stdin, and executes both concurrently.
    - **`>` / `<` (Redirection)**: Opens target files with `open()`, uses `dup2()` inside the child process to redirect `STDOUT_FILENO` or `STDIN_FILENO`, and runs `execvp()`.
 5. **Foreground Waiting**: For normal commands without `&`, the parent calls `waitpid()` to block until child execution completes.
 
 ---
 
 ## Technologies Used
-- **Language**: C (C99 standard)
+- **Language**: C (GCC)
 - **Environment**: Linux / WSL (Ubuntu)
 - **Compiler**: GCC (GNU Compiler Collection)
 - **APIs**: POSIX System Calls (`unistd.h`, `sys/types.h`, `sys/wait.h`, `fcntl.h`)
@@ -49,13 +47,6 @@ NexShell demonstrates fundamental OS principles including process creation (`for
 ---
 
 ## How to Run
-
-### Prerequisites
-Ensure you have GCC and GNU Make installed on your Linux or WSL system:
-```bash
-sudo apt update
-sudo apt install build-essential
-```
 
 ### Compilation
 Compile `main.c` using GCC:
@@ -73,37 +64,21 @@ Run the compiled binary:
 
 ## Example Commands
 
+The following command sequences illustrate standard interaction patterns supported by NexShell:
+
 ```text
 NexShell> pwd
-/home/user/NexShell
-
 NexShell> ls
-main.c nexshell
-
 NexShell> mkdir demo
-
 NexShell> cd demo
-
-NexShell> cd ..
-
-NexShell> ls > files.txt
-
-NexShell> cat < files.txt
-main.c
-files.txt
-nexshell
-
-NexShell> ls | grep files
-files.txt
-
-NexShell> sleep 10 &
-[Background process started: PID 14258]
-
 NexShell> pwd
-/home/user/NexShell
-
+NexShell> cd ..
+NexShell> ls > files.txt
+NexShell> cat < files.txt
+NexShell> ls | grep test
+NexShell> sleep 10 &
+NexShell> pwd
 NexShell> exit
-Exiting NexShell...
 ```
 
 ---
@@ -112,7 +87,7 @@ Exiting NexShell...
 
 - **`fork()`**: Clones the calling shell process to create a new child process with its own execution context.
 - **`execvp()`**: Replaces the current child process image with a new executable program specified by command name and argument array.
-- **`wait()` / `waitpid()`**: Suspends the parent process until child processes terminate, or non-blockingly inspects child exit statuses with `WNOHANG`.
+- **`waitpid()`**: Suspends the parent process until a specific child process terminates, or non-blockingly inspects child exit statuses with `WNOHANG`.
 - **`pipe()`**: Allocates a pair of connected file descriptors (`pipe_fd[0]` for reading, `pipe_fd[1]` for writing) for inter-process communication.
 - **`dup2()`**: Duplicates an open file descriptor onto `STDIN_FILENO` (0) or `STDOUT_FILENO` (1) for input/output redirection.
 - **`chdir()`**: Changes the current working directory of the shell process.
@@ -121,14 +96,19 @@ Exiting NexShell...
 ---
 
 ## Team Members
-- **NexShell Developers** (College Hackathon Project)
+- **Susheel**
+- **Jaswant**
+- **Manoj**
+- **Sanjana**
 
 ---
 
 ## Limitations
-- **Single Pipe Only**: Supports single-pipe constructs (`cmd1 | cmd2`), but does not currently support multi-pipe chains (`cmd1 | cmd2 | cmd3`).
-- **No Operator Combinations**: Does not currently combine piping with redirection on a single line (e.g. `ls | grep test > out.txt`).
-- **Simplified Job Control**: Supports asynchronous background execution (`&`), but does not include full job control commands (`jobs`, `fg`, `bg`) or terminal signal handlers (`Ctrl+Z`).
+- **Single Pipe Only**: Supports single-pipe constructs (`cmd1 | cmd2`), but does not support multi-pipe chains (`cmd1 | cmd2 | cmd3`).
+- **No Operator Combinations**: Does not support combining redirection with piping on a single line (e.g. `ls | grep test > out.txt`).
+- **No Advanced Shell Quoting**: Does not parse quotes (`"` or `'`) for handling whitespace within arguments.
+- **No Glob Expansion**: Does not perform wildcard expansion (`*`, `?`).
+- **Simplified Job Control**: Supports asynchronous background execution (`&`), but does not include full job control commands (`jobs`, `fg`, `bg`) or signal handlers (`Ctrl+C`, `Ctrl+Z`).
 - **OS Scope**: Designed specifically for POSIX-compliant Unix/Linux/WSL operating systems.
 
 ---
