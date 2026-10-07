@@ -24,9 +24,10 @@ NexShell addresses these challenges by implementing an efficient REPL loop that 
   - `exit`: Cleanly terminates the interactive shell session.
   - `cd [dir]`: Changes the current working directory in the parent shell process via `chdir()`. If no argument is passed, defaults to `$HOME`.
 - **External Command Execution**: Executes standard system binaries (e.g., `pwd`, `ls`, `mkdir`, `cat`, `grep`, `sleep`, `sort`, `echo`) by spawning child processes using `fork()`, `execvp()`, and `waitpid()`.
-- **Output Redirection (`>`)**: Redirects standard output (`stdout`) to write or truncate a destination file.
-- **Input Redirection (`<`)**: Redirects standard input (`stdin`) to read data directly from a file.
-- **Dual Redirection (`<` and `>`)**: Supports simultaneous input and output redirection on a single command line (e.g., `cmd < input.txt > output.txt` or `cmd > output.txt < input.txt`).
+- **Output Redirection (`>`)**: Redirects standard output (`stdout`) to write or truncate a destination file, with support for standard (`cmd > file`) and tight (`cmd>file`) syntax.
+- **Input Redirection (`<`)**: Redirects standard input (`stdin`) to read data directly from a file, with support for standard (`cmd < file`) and tight (`cmd<file`) syntax.
+- **Dual Redirection (`<` and `>`)**: Supports simultaneous input and output redirection on a single command line (e.g., `cmd < input.txt > output.txt`, `cmd > output.txt < input.txt`, and `cmd<input.txt>output.txt`).
+- **Defensive Redirection Validation**: Validates syntax before forking; rejects repeated operators (`>>`, `<<`), missing filenames, and missing commands with clear diagnostics.
 - **Command Piping (`|`)**: Inter-process communication connecting the standard output of a left child process directly to the standard input of a right child process using POSIX `pipe()` and `dup2()`.
 - **Background Execution (`&`)**: Spawns commands asynchronously without blocking the parent shell prompt, immediately reporting child process IDs (PIDs).
 - **Non-blocking Zombie Process Reaping**: Automatically reaps terminated background child processes before every prompt cycle using `waitpid(-1, NULL, WNOHANG)`.
@@ -57,7 +58,7 @@ NexShell follows a structured execution pipeline for every command entered:
 | 4. Operator Interception & Dispatch:                                  |
 |    - Built-ins ('exit', 'cd') -> Execute directly in parent process   |
 |    - Pipeline ('|')          -> Create pipe(), fork 2 children, dup2 |
-|    - Redirection ('>', '<')  -> Open files, fork child, dup2 FDs      |
+|    - Redirection ('>', '<')  -> parse_redirection(), fork, dup2 FDs   |
 |    - General Commands        -> Fork child, execvp()                  |
 +-----------------------------------------------------------------------+
                                    |
@@ -76,7 +77,7 @@ NexShell follows a structured execution pipeline for every command entered:
    - Left Child: `dup2(pipe_fd[1], STDOUT_FILENO)` routes standard output to the pipe write-end.
    - Right Child: `dup2(pipe_fd[0], STDIN_FILENO)` routes standard input from the pipe read-end.
    - Both ends of the pipe are closed in both children and the parent process to prevent hanging descriptor leaks.
-4. **Redirection Flow**: When `>` or `<` is detected, target filenames are extracted and trimmed. The child process opens files with `open()` (`O_WRONLY | O_CREAT | O_TRUNC` for output; `O_RDONLY` for input) and redirects standard descriptors via `dup2()`.
+4. **Redirection Flow**: When `>` or `<` is detected, syntax is validated and parsed into a `RedirectionInfo` struct by `parse_redirection()`. The child process executes `execute_child_redirection()` to open files with `open()` (`O_WRONLY | O_CREAT | O_TRUNC` for output; `O_RDONLY` for input) and redirects standard descriptors via `dup2()`.
 
 ---
 
@@ -259,12 +260,17 @@ NexShell includes comprehensive technical documentation, architecture specificat
 ### Core Architecture & System Specifications
 - **[Architecture & Execution Design](docs/ARCHITECTURE.md)**: Detailed breakdown of the REPL loop, input trimming, command parsing, process synchronization, and descriptor flows.
 - **[POSIX System Call Reference](docs/SYSTEM_CALLS.md)**: Complete guide to `fork()`, `execvp()`, `waitpid()`, `pipe()`, `dup2()`, `open()`, `close()`, and `chdir()`.
-- **[Redirection Implementation Guide](docs/REDIRECTION.md)**: Deep dive into child process isolation, descriptor redirection, and file mode flags (`O_WRONLY`, `O_CREAT`, `O_TRUNC`, `O_RDONLY`).
+- **[Redirection Architecture & Engineering Guide](docs/REDIRECTION_GUIDE.md)**: Deep dive into `RedirectionInfo`, lexical parsing, child stream substitution, file modes (`O_CREAT`, `O_TRUNC`, `O_RDONLY`), and descriptor isolation.
+- **[Redirection Code Walkthrough](docs/REDIRECTION_CODE_WALKTHROUGH.md)**: Line-by-line, function-by-function execution walkthrough of `parse_redirection()` and `execute_child_redirection()`.
+- **[Redirection Implementation Guide](docs/REDIRECTION.md)**: Technical breakdown of child process isolation, descriptor redirection, and file mode flags.
 - **[Piping & Background Execution Guide](docs/PIPE_AND_BACKGROUND.md)**: In-depth analysis of IPC pipe buffers, dual-child concurrency, and non-blocking `WNOHANG` zombie reclamation.
 
 ### Testing & Quality Assurance
+- **[Redirection Test Plan & Matrix](docs/REDIRECTION_TEST_PLAN.md)**: Comprehensive 27-scenario test verification matrix covering normal, tight, dual, edge case, and regression scenarios.
+- **[Redirection Reference Test Suite](tests/redirection/README.md)**: Interactive test command script and edge case reference matrix.
+- **[Redirection Testing Guide](docs/REDIRECTION_TESTING.md)**: Practical test scenarios and expected behaviors for output and input redirection.
 - **[Master Test Plan & QA Strategy](docs/TEST_PLAN.md)**: Testing objectives, test environments, boundary conditions, and acceptance criteria.
-- **[Official Test Execution Results](docs/TEST_RESULTS.md)**: Live verification logs across 23 standardized functional and regression test cases.
+- **[Official Test Execution Results](docs/TEST_RESULTS.md)**: Live verification logs across standardized functional and regression test cases.
 - **[Basic & Built-in Commands Test Suite](tests/basic_commands.md)**: Test specs for `pwd`, `ls`, `cd`, `mkdir`, `exit`, and whitespace sanitization.
 - **[I/O Redirection Test Suite](tests/redirection_tests.md)**: Test specs for `>`, `<`, tight syntax, dual redirection, and error handling.
 - **[Command Piping Test Suite](tests/pipe_tests.md)**: Test specs for single pipes, multi-arg pipelines, and stream filtering.
@@ -273,6 +279,7 @@ NexShell includes comprehensive technical documentation, architecture specificat
 - **[End-to-End Integration Test Suite](tests/integration_tests.md)**: Full session lifecycle integration workflows.
 
 ### Developer & Operational Guides
+- **[Redirection Debugging & Diagnostic Guide](docs/REDIRECTION_DEBUGGING.md)**: Troubleshooting common system call errors (`ENOENT`, `EACCES`, `EBADF`), GDB child process debugging, and `/proc/<pid>/fd/` inspection.
 - **[Developer & Contributor Guide](docs/DEVELOPER_GUIDE.md)**: Instructions for adding new built-in commands, extending features, and debugging with GDB/Valgrind.
 - **[Troubleshooting & Diagnostic Guide](docs/TROUBLESHOOTING.md)**: Solutions and root-cause analyses for build errors, permission issues, WSL quirks, and GitHub auth.
 - **[3–5 Minute Jury Demonstration Script](docs/DEMO_GUIDE.md)**: Timed presentation walkthrough and talking points for project evaluators.

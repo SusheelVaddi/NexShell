@@ -1,0 +1,62 @@
+# NexShell Redirection Interactive Test Commands
+# Run by piping into ./nexshell or copying commands interactively
+
+# 1. Basic Working Directory and Listing
+pwd
+ls
+
+# 2. Basic Output Redirection
+echo hello > output.txt
+cat < output.txt
+
+# 3. Overwrite Verification (Truncate)
+echo first > test_trunc.txt
+echo second > test_trunc.txt
+cat < test_trunc.txt
+
+# 4. Tight Syntax Output and Input
+echo tight_payload>tight_out.txt
+cat<tight_out.txt
+
+# 5. Dual Redirection (Input and Output)
+cat < output.txt > copied.txt
+cat < copied.txt
+
+# 6. Tight Dual Redirection
+cat<output.txt>tight_copy.txt
+cat<tight_copy.txt
+
+# 7. Reverse Order Dual Redirection
+cat > reverse_copy.txt < output.txt
+cat < reverse_copy.txt
+
+# 8. Syntax Error Tests - Missing Filename
+ls >
+cat <
+
+# 9. Syntax Error Tests - Repeated Operators
+ls >> output.txt
+cat << output.txt
+echo test > a.txt > b.txt
+cat < a.txt < b.txt
+
+# 10. Syntax Error Tests - Missing Command
+> output.txt
+< output.txt
+
+# 11. Syntax Error Tests - Malformed Dual Operators
+cat < > output.txt
+cat > < input.txt
+
+# 12. Kernel Error Handling - Missing Input File
+cat < does_not_exist_file_xyz.txt
+
+# 13. Kernel Error Handling - Invalid Command with Redirection
+invalidcommand123 > out_err.txt
+
+# 14. Subsystem Regression - Pipelines and Background
+echo pipeline_test | cat
+sleep 1 &
+
+# 15. Clean Exit
+exit
