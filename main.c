@@ -221,96 +221,67 @@ int main(void) {
             continue;
         }
 
-        // Check for output redirection operator '>'
+        // Check for redirection operators '>' and '<'
         char *out_redirect_ptr = strchr(trimmed_input, '>');
-        if (out_redirect_ptr != NULL) {
-            // Split input into command part and output filename
-            *out_redirect_ptr = '\0';
-            char *cmd_part = trim_whitespace(trimmed_input);
-            char *filename_part = trim_whitespace(out_redirect_ptr + 1);
+        char *in_redirect_ptr = strchr(trimmed_input, '<');
 
-            // Validate output filename
-            if (strlen(filename_part) == 0) {
+        if (out_redirect_ptr != NULL || in_redirect_ptr != NULL) {
+            int has_output_redirect = 0;
+            int has_input_redirect = 0;
+            char *output_file = NULL;
+            char *input_file = NULL;
+            char *cmd_part = NULL;
+
+            if (out_redirect_ptr != NULL && in_redirect_ptr != NULL) {
+                // Both operators present
+                if (in_redirect_ptr < out_redirect_ptr) {
+                    // Form: cmd < in_file > out_file
+                    *in_redirect_ptr = '\0';
+                    *out_redirect_ptr = '\0';
+                    cmd_part = trim_whitespace(trimmed_input);
+                    input_file = trim_whitespace(in_redirect_ptr + 1);
+                    output_file = trim_whitespace(out_redirect_ptr + 1);
+                } else {
+                    // Form: cmd > out_file < in_file
+                    *out_redirect_ptr = '\0';
+                    *in_redirect_ptr = '\0';
+                    cmd_part = trim_whitespace(trimmed_input);
+                    output_file = trim_whitespace(out_redirect_ptr + 1);
+                    input_file = trim_whitespace(in_redirect_ptr + 1);
+                }
+                has_input_redirect = 1;
+                has_output_redirect = 1;
+            } else if (out_redirect_ptr != NULL) {
+                // Only '>' present
+                *out_redirect_ptr = '\0';
+                cmd_part = trim_whitespace(trimmed_input);
+                output_file = trim_whitespace(out_redirect_ptr + 1);
+                has_output_redirect = 1;
+            } else {
+                // Only '<' present
+                *in_redirect_ptr = '\0';
+                cmd_part = trim_whitespace(trimmed_input);
+                input_file = trim_whitespace(in_redirect_ptr + 1);
+                has_input_redirect = 1;
+            }
+
+            // Validate filenames and command
+            if (has_output_redirect && strlen(output_file) == 0) {
                 printf("Error: Missing output filename.\n");
                 continue;
             }
-
-            // Validate command part
-            if (strlen(cmd_part) == 0) {
-                printf("Error: Missing command before '>'.\n");
-                continue;
-            }
-
-            // Tokenize command part into arguments for execvp
-            char *args[MAX_ARGS];
-            int arg_count = parse_command(cmd_part, args, MAX_ARGS);
-
-            if (arg_count == 0) {
-                printf("Error: Invalid command before '>'.\n");
-                continue;
-            }
-
-            // Create or open the output file (truncate if exists)
-            int file_fd = open(filename_part, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-            if (file_fd < 0) {
-                perror("open failed");
-                continue;
-            }
-
-            // Fork a child process to execute the command with redirected stdout
-            pid_t pid = fork();
-
-            if (pid < 0) {
-                // Fork failed
-                perror("fork failed");
-                close(file_fd);
-            } else if (pid == 0) {
-                // Child process: redirect stdout to opened file descriptor using dup2
-                if (dup2(file_fd, STDOUT_FILENO) < 0) {
-                    perror("dup2 failed");
-                    close(file_fd);
-                    exit(1);
-                }
-
-                // Close original file descriptor after dup2
-                close(file_fd);
-
-                // Execute command using execvp
-                execvp(args[0], args);
-
-                // If execvp returns, execution failed
-                perror("execvp failed");
-                exit(1);
-            } else {
-                // Parent process: close file descriptor
-                close(file_fd);
-
-                if (is_background) {
-                    printf("[Background process started: PID %d]\n", pid);
-                } else {
-                    waitpid(pid, NULL, 0);
-                }
-            }
-            continue;
-        }
-
-        // Check for input redirection operator '<'
-        char *in_redirect_ptr = strchr(trimmed_input, '<');
-        if (in_redirect_ptr != NULL) {
-            // Split input into command part and input filename
-            *in_redirect_ptr = '\0';
-            char *cmd_part = trim_whitespace(trimmed_input);
-            char *filename_part = trim_whitespace(in_redirect_ptr + 1);
-
-            // Validate input filename
-            if (strlen(filename_part) == 0) {
+            if (has_input_redirect && strlen(input_file) == 0) {
                 printf("Error: Missing input filename.\n");
                 continue;
             }
-
-            // Validate command part
             if (strlen(cmd_part) == 0) {
-                printf("Error: Missing command before '<'.\n");
+                if (has_output_redirect && !has_input_redirect) {
+                    printf("Error: Missing command before '>'.\n");
+                } else if (has_input_redirect && !has_output_redirect) {
+                    printf("Error: Missing command before '<'.\n");
+                } else {
+                    printf("Error: Missing command before redirection.\n");
+                }
                 continue;
             }
 
@@ -319,34 +290,47 @@ int main(void) {
             int arg_count = parse_command(cmd_part, args, MAX_ARGS);
 
             if (arg_count == 0) {
-                printf("Error: Invalid command before '<'.\n");
+                printf("Error: Invalid command before redirection.\n");
                 continue;
             }
 
-            // Open the input file for reading
-            int file_fd = open(filename_part, O_RDONLY);
-            if (file_fd < 0) {
-                perror("open failed");
-                continue;
-            }
-
-            // Fork a child process to execute the command with redirected stdin
+            // Fork a child process to execute the command with redirection
             pid_t pid = fork();
 
             if (pid < 0) {
                 // Fork failed
                 perror("fork failed");
-                close(file_fd);
+                continue;
             } else if (pid == 0) {
-                // Child process: redirect stdin to opened file descriptor using dup2
-                if (dup2(file_fd, STDIN_FILENO) < 0) {
-                    perror("dup2 failed");
-                    close(file_fd);
-                    exit(1);
+                // Child process: set up input redirection before execvp
+                if (has_input_redirect) {
+                    int input_fd = open(input_file, O_RDONLY);
+                    if (input_fd < 0) {
+                        perror("open failed");
+                        exit(1);
+                    }
+                    if (dup2(input_fd, STDIN_FILENO) < 0) {
+                        perror("dup2 failed");
+                        close(input_fd);
+                        exit(1);
+                    }
+                    close(input_fd);
                 }
 
-                // Close original file descriptor after dup2
-                close(file_fd);
+                // Child process: set up output redirection before execvp
+                if (has_output_redirect) {
+                    int output_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                    if (output_fd < 0) {
+                        perror("open failed");
+                        exit(1);
+                    }
+                    if (dup2(output_fd, STDOUT_FILENO) < 0) {
+                        perror("dup2 failed");
+                        close(output_fd);
+                        exit(1);
+                    }
+                    close(output_fd);
+                }
 
                 // Execute command using execvp
                 execvp(args[0], args);
@@ -355,9 +339,7 @@ int main(void) {
                 perror("execvp failed");
                 exit(1);
             } else {
-                // Parent process: close file descriptor
-                close(file_fd);
-
+                // Parent process: wait for child process (or notify if background)
                 if (is_background) {
                     printf("[Background process started: PID %d]\n", pid);
                 } else {
