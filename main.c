@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 
@@ -225,6 +226,9 @@ static void execute_pipeline_stage(char *stage_str) {
 int main(void) {
     char input[MAX_INPUT_SIZE];
 
+    // Ignore SIGINT (Ctrl+C) in the parent shell process so pressing Ctrl+C does not terminate NexShell
+    signal(SIGINT, SIG_IGN);
+
     // Infinite loop to keep the shell running continuously
     while (1) {
         // Non-blocking check to reap any completed background processes (avoids zombies)
@@ -238,9 +242,15 @@ int main(void) {
 
         // Read a line of input from standard input (keyboard)
         if (fgets(input, sizeof(input), stdin) == NULL) {
-            // Handle Ctrl+D / EOF or input error gracefully
-            printf("\nExiting NexShell...\n");
-            break;
+            if (feof(stdin)) {
+                // Handle Ctrl+D / EOF gracefully
+                printf("\nExiting NexShell...\n");
+                break;
+            }
+            // If interrupted by a signal, clear error flag and print newline to re-prompt
+            clearerr(stdin);
+            printf("\n");
+            continue;
         }
 
         // Remove the trailing newline character standard in fgets input
@@ -381,6 +391,13 @@ int main(void) {
                     break;
                 } else if (pids[i] == 0) {
                     // Child i process
+                    // Set signal disposition: foreground child processes restore default SIGINT handling
+                    if (is_background) {
+                        signal(SIGINT, SIG_IGN);
+                    } else {
+                        signal(SIGINT, SIG_DFL);
+                    }
+
                     // Connect STDIN to previous pipe read end if not first stage
                     if (i > 0) {
                         if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
@@ -459,6 +476,13 @@ int main(void) {
                 perror("fork failed");
                 continue;
             } else if (pid == 0) {
+                // Child process: set signal disposition
+                if (is_background) {
+                    signal(SIGINT, SIG_IGN);
+                } else {
+                    signal(SIGINT, SIG_DFL);
+                }
+
                 // Child process: configure file descriptors and execute command
                 execute_child_redirection(&redir, args);
             } else {
@@ -483,6 +507,13 @@ int main(void) {
                 // Fork failed
                 perror("fork failed");
             } else if (pid == 0) {
+                // Child process: set signal disposition
+                if (is_background) {
+                    signal(SIGINT, SIG_IGN);
+                } else {
+                    signal(SIGINT, SIG_DFL);
+                }
+
                 // Child process: execute command using execvp
                 execvp(args[0], args);
 
