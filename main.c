@@ -38,6 +38,161 @@ static int parse_command(char *cmd_str, char **args, int max_args) {
     return count;
 }
 
+// Structure to store parsed redirection components and flags
+typedef struct {
+    char *cmd_part;
+    char *input_file;
+    char *output_file;
+    int has_input_redirect;
+    int has_output_redirect;
+} RedirectionInfo;
+
+// Helper function to parse and validate redirection syntax
+static int parse_redirection(char *input_str, RedirectionInfo *redir) {
+    // Count occurrences of redirection operators to detect repeated or multiple usage
+    int count_out = 0;
+    int count_in = 0;
+    for (int i = 0; input_str[i] != '\0'; i++) {
+        if (input_str[i] == '>') {
+            count_out++;
+        } else if (input_str[i] == '<') {
+            count_in++;
+        }
+    }
+
+    // No redirection requested
+    if (count_out == 0 && count_in == 0) {
+        return 0;
+    }
+
+    // Validate against repeated or multiple redirection operators
+    if (count_out > 1) {
+        printf("Error: Multiple or repeated '>' redirection operators.\n");
+        return -1;
+    }
+    if (count_in > 1) {
+        printf("Error: Multiple or repeated '<' redirection operators.\n");
+        return -1;
+    }
+
+    // Initialize RedirectionInfo fields
+    redir->cmd_part = NULL;
+    redir->input_file = NULL;
+    redir->output_file = NULL;
+    redir->has_input_redirect = 0;
+    redir->has_output_redirect = 0;
+
+    char *out_redirect_ptr = strchr(input_str, '>');
+    char *in_redirect_ptr = strchr(input_str, '<');
+
+    if (out_redirect_ptr != NULL && in_redirect_ptr != NULL) {
+        // Both operators present; inspect relative ordering
+        if (in_redirect_ptr < out_redirect_ptr) {
+            // Format: cmd < input_file > output_file
+            *in_redirect_ptr = '\0';
+            *out_redirect_ptr = '\0';
+            redir->cmd_part = trim_whitespace(input_str);
+            redir->input_file = trim_whitespace(in_redirect_ptr + 1);
+            redir->output_file = trim_whitespace(out_redirect_ptr + 1);
+        } else {
+            // Format: cmd > output_file < input_file
+            *out_redirect_ptr = '\0';
+            *in_redirect_ptr = '\0';
+            redir->cmd_part = trim_whitespace(input_str);
+            redir->output_file = trim_whitespace(out_redirect_ptr + 1);
+            redir->input_file = trim_whitespace(in_redirect_ptr + 1);
+        }
+        redir->has_input_redirect = 1;
+        redir->has_output_redirect = 1;
+    } else if (out_redirect_ptr != NULL) {
+        // Only '>' present
+        *out_redirect_ptr = '\0';
+        redir->cmd_part = trim_whitespace(input_str);
+        redir->output_file = trim_whitespace(out_redirect_ptr + 1);
+        redir->has_output_redirect = 1;
+    } else {
+        // Only '<' present
+        *in_redirect_ptr = '\0';
+        redir->cmd_part = trim_whitespace(input_str);
+        redir->input_file = trim_whitespace(in_redirect_ptr + 1);
+        redir->has_input_redirect = 1;
+    }
+
+    // Validate extracted filenames
+    if (redir->has_output_redirect && strlen(redir->output_file) == 0) {
+        printf("Error: Missing output filename.\n");
+        return -1;
+    }
+    if (redir->has_input_redirect && strlen(redir->input_file) == 0) {
+        printf("Error: Missing input filename.\n");
+        return -1;
+    }
+
+    // Validate extracted command part
+    if (strlen(redir->cmd_part) == 0) {
+        if (redir->has_output_redirect && !redir->has_input_redirect) {
+            printf("Error: Missing command before '>'.\n");
+        } else if (redir->has_input_redirect && !redir->has_output_redirect) {
+            printf("Error: Missing command before '<'.\n");
+        } else {
+            printf("Error: Missing command before redirection.\n");
+        }
+        return -1;
+    }
+
+    return 1;
+}
+
+// Helper function to configure file descriptors and execute command in child process
+static void execute_child_redirection(const RedirectionInfo *redir, char **args) {
+    // Set up input redirection if requested
+    if (redir->has_input_redirect) {
+        // Open source file in read-only mode
+        int input_fd = open(redir->input_file, O_RDONLY);
+        if (input_fd < 0) {
+            perror("open failed");
+            exit(1);
+        }
+
+        // Duplicate input_fd to STDIN_FILENO (descriptor 0)
+        if (dup2(input_fd, STDIN_FILENO) < 0) {
+            perror("dup2 failed");
+            close(input_fd); // Close descriptor on error before exit
+            exit(1);
+        }
+
+        // Close original descriptor after dup2 to prevent file descriptor leaks
+        close(input_fd);
+    }
+
+    // Set up output redirection if requested
+    if (redir->has_output_redirect) {
+        // Open destination file: write-only, create if missing, truncate if existing
+        int output_fd = open(redir->output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (output_fd < 0) {
+            perror("open failed");
+            exit(1);
+        }
+
+        // Duplicate output_fd to STDOUT_FILENO (descriptor 1)
+        if (dup2(output_fd, STDOUT_FILENO) < 0) {
+            perror("dup2 failed");
+            close(output_fd); // Close descriptor on error before exit
+            exit(1);
+        }
+
+        // Close original descriptor after dup2 to prevent file descriptor leaks
+        close(output_fd);
+    }
+
+    // Replace child image with target program
+    execvp(args[0], args);
+
+    // If execvp returns, command execution failed
+    perror("execvp failed");
+    exit(1);
+}
+
 int main(void) {
     char input[MAX_INPUT_SIZE];
 
@@ -223,73 +378,17 @@ int main(void) {
             continue;
         }
 
-        // Check for redirection operators '>' and '<'
-        char *out_redirect_ptr = strchr(trimmed_input, '>');
-        char *in_redirect_ptr = strchr(trimmed_input, '<');
+        // Check for redirection operators ('>' and '<')
+        RedirectionInfo redir;
+        int redir_status = parse_redirection(trimmed_input, &redir);
 
-        if (out_redirect_ptr != NULL || in_redirect_ptr != NULL) {
-            int has_output_redirect = 0;
-            int has_input_redirect = 0;
-            char *output_file = NULL;
-            char *input_file = NULL;
-            char *cmd_part = NULL;
-
-            if (out_redirect_ptr != NULL && in_redirect_ptr != NULL) {
-                // Both operators present
-                if (in_redirect_ptr < out_redirect_ptr) {
-                    // Form: cmd < in_file > out_file
-                    *in_redirect_ptr = '\0';
-                    *out_redirect_ptr = '\0';
-                    cmd_part = trim_whitespace(trimmed_input);
-                    input_file = trim_whitespace(in_redirect_ptr + 1);
-                    output_file = trim_whitespace(out_redirect_ptr + 1);
-                } else {
-                    // Form: cmd > out_file < in_file
-                    *out_redirect_ptr = '\0';
-                    *in_redirect_ptr = '\0';
-                    cmd_part = trim_whitespace(trimmed_input);
-                    output_file = trim_whitespace(out_redirect_ptr + 1);
-                    input_file = trim_whitespace(in_redirect_ptr + 1);
-                }
-                has_input_redirect = 1;
-                has_output_redirect = 1;
-            } else if (out_redirect_ptr != NULL) {
-                // Only '>' present
-                *out_redirect_ptr = '\0';
-                cmd_part = trim_whitespace(trimmed_input);
-                output_file = trim_whitespace(out_redirect_ptr + 1);
-                has_output_redirect = 1;
-            } else {
-                // Only '<' present
-                *in_redirect_ptr = '\0';
-                cmd_part = trim_whitespace(trimmed_input);
-                input_file = trim_whitespace(in_redirect_ptr + 1);
-                has_input_redirect = 1;
-            }
-
-            // Validate filenames and command
-            if (has_output_redirect && strlen(output_file) == 0) {
-                printf("Error: Missing output filename.\n");
-                continue;
-            }
-            if (has_input_redirect && strlen(input_file) == 0) {
-                printf("Error: Missing input filename.\n");
-                continue;
-            }
-            if (strlen(cmd_part) == 0) {
-                if (has_output_redirect && !has_input_redirect) {
-                    printf("Error: Missing command before '>'.\n");
-                } else if (has_input_redirect && !has_output_redirect) {
-                    printf("Error: Missing command before '<'.\n");
-                } else {
-                    printf("Error: Missing command before redirection.\n");
-                }
-                continue;
-            }
-
+        if (redir_status < 0) {
+            // Syntax or validation error occurred; skip execution and prompt again
+            continue;
+        } else if (redir_status > 0) {
             // Tokenize command part into arguments for execvp
             char *args[MAX_ARGS];
-            int arg_count = parse_command(cmd_part, args, MAX_ARGS);
+            int arg_count = parse_command(redir.cmd_part, args, MAX_ARGS);
 
             if (arg_count == 0) {
                 printf("Error: Invalid command before redirection.\n");
@@ -300,48 +399,14 @@ int main(void) {
             pid_t pid = fork();
 
             if (pid < 0) {
-                // Fork failed
+                // Fork failed in parent process
                 perror("fork failed");
                 continue;
             } else if (pid == 0) {
-                // Child process: set up input redirection before execvp
-                if (has_input_redirect) {
-                    int input_fd = open(input_file, O_RDONLY);
-                    if (input_fd < 0) {
-                        perror("open failed");
-                        exit(1);
-                    }
-                    if (dup2(input_fd, STDIN_FILENO) < 0) {
-                        perror("dup2 failed");
-                        close(input_fd);
-                        exit(1);
-                    }
-                    close(input_fd);
-                }
-
-                // Child process: set up output redirection before execvp
-                if (has_output_redirect) {
-                    int output_fd = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                    if (output_fd < 0) {
-                        perror("open failed");
-                        exit(1);
-                    }
-                    if (dup2(output_fd, STDOUT_FILENO) < 0) {
-                        perror("dup2 failed");
-                        close(output_fd);
-                        exit(1);
-                    }
-                    close(output_fd);
-                }
-
-                // Execute command using execvp
-                execvp(args[0], args);
-
-                // If execvp returns, execution failed
-                perror("execvp failed");
-                exit(1);
+                // Child process: configure file descriptors and execute command
+                execute_child_redirection(&redir, args);
             } else {
-                // Parent process: wait for child process (or notify if background)
+                // Parent process: wait for foreground child or report background PID
                 if (is_background) {
                     printf("[Background process started: PID %d]\n", pid);
                 } else {
