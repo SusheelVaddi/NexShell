@@ -83,6 +83,16 @@ NexShell> exit
 
 ---
 
+## Testing and Validation
+
+NexShell was systematically tested across standard Unix/POSIX command scenarios:
+- **Basic Commands**: Verified external commands (`pwd`, `ls`, `mkdir`, `cat`) and built-in operations (`cd`, `exit`).
+- **Input/Output Redirection**: Verified output redirection (`>`) to files and input redirection (`<`) from files.
+- **Pipes**: Tested single-stage command piping (`cmd1 | cmd2`) connecting stdout to stdin via POSIX `pipe()`.
+- **Background Execution**: Tested asynchronous execution (`&`) and non-blocking zombie process reaping.
+
+---
+
 ## System Calls Used
 
 - **`fork()`**: Clones the calling shell process to create a new child process with its own execution context.
