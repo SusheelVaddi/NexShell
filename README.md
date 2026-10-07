@@ -232,6 +232,14 @@ NexShell has been systematically validated across core Unix command execution sc
 
 ---
 
+## Pipe and Background Execution
+
+For dedicated documentation on IPC pipeline mechanics, background process workflows, and test cases:
+- **[Pipe and Background Implementation Guide](docs/PIPE_AND_BACKGROUND.md)**: Comprehensive breakdown of POSIX system calls (`pipe()`, `fork()`, `dup2()`, `execvp()`, `waitpid()`, `WNOHANG`) and execution flows for `ls | sort` and `sleep 10 &`.
+- **[Pipe Testing Scenarios](docs/PIPE_TESTING.md)**: Practical testing scenarios (`ls | sort`, `echo hello | cat`, `pwd | cat`, `invalid command | cat`), expected outputs, and process isolation verifications.
+
+---
+
 ## 9. Limitations
 - **Single Pipe Only**: Supports single-pipe constructs (`cmd1 | cmd2`), but does not support multi-pipe chains (`cmd1 | cmd2 | cmd3`).
 - **No Operator Combinations**: Does not support combining redirection with piping on a single command line (e.g., `ls | grep test > out.txt`).
