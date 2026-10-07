@@ -232,9 +232,31 @@ NexShell has been systematically validated across core Unix command execution sc
 
 ---
 
-## Pipe and Background Execution
+## File Descriptor Handling
 
-For dedicated documentation on IPC pipeline mechanics, background process workflows, and test cases:
+In Unix-like operating systems, processes manage I/O streams using integer file descriptors assigned by the kernel:
+- **`stdin`  = 0** (`STDIN_FILENO`): Standard input stream (default: keyboard).
+- **`stdout` = 1** (`STDOUT_FILENO`): Standard output stream (default: terminal display).
+- **`stderr` = 2** (`STDERR_FILENO`): Standard error stream (default: terminal display).
+
+### Stream Redirection via `dup2()`
+NexShell uses `dup2(int oldfd, int newfd)` to duplicate open file descriptors onto standard stream slots:
+- **Output Redirection (`>`)**: `dup2(output_fd, STDOUT_FILENO)` duplicates the writable file descriptor onto descriptor `1`, routing command output into the destination file.
+- **Input Redirection (`<`)**: `dup2(input_fd, STDIN_FILENO)` duplicates the readable file descriptor onto descriptor `0`, allowing the command to read its input directly from the file.
+- **Command Pipelines (`|`)**: Duplicates the pipe's write end (`pipe_fd[1]`) onto `STDOUT_FILENO` for the left child and the pipe's read end (`pipe_fd[0]`) onto `STDIN_FILENO` for the right child.
+
+### Descriptor Cleanup and Hygiene
+To prevent descriptor exhaustion and resource leaks, file descriptors are closed with `close()` immediately after duplication or when no longer required:
+- In redirection, the original `output_fd` or `input_fd` is closed right after `dup2()`, leaving only the standard stream connected.
+- In pipelines, unused pipe descriptors are closed in both child processes and the parent process, ensuring clean stream termination and proper End-of-File (EOF) signalling.
+
+---
+
+## Technical Documentation & Guides
+
+For in-depth architectural breakdowns and testing scenarios:
+- **[Redirection Implementation Guide](docs/REDIRECTION.md)**: Detailed breakdown of `open()`, `dup2()`, `close()`, child-process isolation, and execution flows for `ls > output.txt` and `cat < output.txt`.
+- **[Redirection Testing Scenarios](docs/REDIRECTION_TESTING.md)**: Practical test cases covering basic, tight-syntax, overwrite, and dual redirection scenarios.
 - **[Pipe and Background Implementation Guide](docs/PIPE_AND_BACKGROUND.md)**: Comprehensive breakdown of POSIX system calls (`pipe()`, `fork()`, `dup2()`, `execvp()`, `waitpid()`, `WNOHANG`) and execution flows for `ls | sort` and `sleep 10 &`.
 - **[Pipe Testing Scenarios](docs/PIPE_TESTING.md)**: Practical testing scenarios (`ls | sort`, `echo hello | cat`, `pwd | cat`, `invalid command | cat`), expected outputs, and process isolation verifications.
 
