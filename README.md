@@ -156,7 +156,83 @@ Exiting NexShell...
 
 ---
 
-## 8. Limitations
+## 8. Testing and Validation
+
+NexShell has been systematically validated across core Unix command execution scenarios and edge cases. Below is the test matrix detailing each verified operation:
+
+### 1. Working Directory Inspection (`pwd`)
+- **Command**:
+  ```text
+  NexShell> pwd
+  ```
+- **Expected Behavior**: Prints the absolute directory path of the current shell session.
+- **Verification**: Spawns a child process with `fork()`, executes `/bin/pwd` via `execvp()`, and blocks until child termination with `waitpid()`.
+
+### 2. Directory Listing (`ls`)
+- **Command**:
+  ```text
+  NexShell> ls -l
+  ```
+- **Expected Behavior**: Lists directory entries, permissions, and file details formatted by the standard `ls` utility.
+- **Verification**: Tests argument tokenization (`strtok()`) and array passing (`char *args[]`) to `execvp()`.
+
+### 3. Directory Navigation (`cd`)
+- **Commands**:
+  ```text
+  NexShell> cd demo_dir
+  NexShell> cd ..
+  NexShell> cd
+  ```
+- **Expected Behavior**:
+  - `cd <dir>`: Changes the current working directory to `<dir>`.
+  - `cd ..`: Traverses to the parent directory.
+  - `cd`: Traverses to the user's home directory (resolving `$HOME`).
+  - Invalid directory: Displays error message `cd failed: No such file or directory`.
+- **Verification**: Confirms execution strictly in the parent shell process via `chdir()`.
+
+### 4. Directory Creation (`mkdir`)
+- **Command**:
+  ```text
+  NexShell> mkdir test_folder
+  ```
+- **Expected Behavior**: Creates the specified directory within the current working folder.
+- **Verification**: Verifies multi-argument external command execution (`mkdir` + folder name).
+
+### 5. Output Redirection (`>`)
+- **Command**:
+  ```text
+  NexShell> ls > output.txt
+  ```
+- **Expected Behavior**: Executes `ls` without printing to the terminal screen; creates or truncates `output.txt` and writes directory listing into it.
+- **Verification**: Validates `open(output.txt, O_WRONLY | O_CREAT | O_TRUNC, 0644)` followed by descriptor replacement via `dup2(fd, STDOUT_FILENO)`.
+
+### 6. Input Redirection (`<`)
+- **Command**:
+  ```text
+  NexShell> cat < output.txt
+  ```
+- **Expected Behavior**: Reads file contents from `output.txt` via redirected standard input and prints the content to the terminal.
+- **Verification**: Validates `open(output.txt, O_RDONLY)` followed by `dup2(fd, STDIN_FILENO)`.
+
+### 7. Command Piping (`|`)
+- **Command**:
+  ```text
+  NexShell> ls | grep main
+  ```
+- **Expected Behavior**: Connects stdout of `ls` to stdin of `grep main`, outputting only entries matching `main` (e.g., `main.c`).
+- **Verification**: Validates `pipe(pipe_fd)`, fork of two child processes, `dup2` descriptor binding, and simultaneous parent/child cleanup of unused pipe ends.
+
+### 8. Background Execution (`&`)
+- **Command**:
+  ```text
+  NexShell> sleep 5 &
+  ```
+- **Expected Behavior**: Displays `[Background process started: PID <pid>]` and immediately returns the `NexShell> ` prompt for subsequent user interaction without blocking.
+- **Verification**: Validates non-blocking child spawning and automatic zombie process cleanup on subsequent loop iterations using `waitpid(-1, NULL, WNOHANG)`.
+
+---
+
+## 9. Limitations
 - **Single Pipe Only**: Supports single-pipe constructs (`cmd1 | cmd2`), but does not support multi-pipe chains (`cmd1 | cmd2 | cmd3`).
 - **No Operator Combinations**: Does not support combining redirection with piping on a single command line (e.g., `ls | grep test > out.txt`).
 - **No Advanced Shell Quoting**: Does not parse quotes (`"` or `'`) for preserving whitespace inside arguments.
@@ -166,7 +242,7 @@ Exiting NexShell...
 
 ---
 
-## 9. Future Enhancements
+## 10. Future Enhancements
 - **Multi-stage Command Pipelines**: Support for multi-pipe chaining (`cmd1 | cmd2 | cmd3 | cmd4`).
 - **Operator Combining**: Support for combining redirection with pipelines (`cat in.txt | grep error > log.txt`).
 - **Full Signal Handling**: Custom signal handlers for `SIGINT` (`Ctrl+C`) and `SIGTSTP` (`Ctrl+Z`) to prevent accidental shell termination.
