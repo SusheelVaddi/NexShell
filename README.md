@@ -258,6 +258,11 @@ To prevent descriptor exhaustion and resource leaks, file descriptors are closed
 NexShell includes comprehensive technical documentation, architecture specifications, test plans, and developer guides:
 
 ### Core Architecture & System Specifications
+- **[Final Engineering & Implementation Notes](docs/IMPLEMENTATION_NOTES.md)**: Overall architecture, REPL loop, process creation, multi-stage pipelines, redirection, background jobs, signal handling, and limitations.
+- **[Final Project Feature Matrix](docs/FEATURE_MATRIX.md)**: Requirement mapping to implementation details, POSIX system calls used, test commands, and status.
+- **[Error Handling & Edge Cases Architecture](docs/ERROR_HANDLING.md)**: Diagnostic handling for invalid commands, missing redirection paths, pipe syntax errors, and signals.
+- **[Final QA Test & Validation Report](docs/FINAL_TEST_REPORT.md)**: Complete 24-scenario test matrix with actual execution outputs.
+- **[Jury & Presentation Guide](docs/JURY_DEMO_GUIDE.md)**: 3-5 minute live demonstration script, system call explanations, and likely Q&A.
 - **[Architecture & Execution Design](docs/ARCHITECTURE.md)**: Detailed breakdown of the REPL loop, input trimming, command parsing, process synchronization, and descriptor flows.
 - **[POSIX System Call Reference](docs/SYSTEM_CALLS.md)**: Complete guide to `fork()`, `execvp()`, `waitpid()`, `pipe()`, `dup2()`, `open()`, `close()`, and `chdir()`.
 - **[Process Lifecycle Specification](docs/PROCESS_LIFECYCLE.md)**: Unified educational guide detailing process memory models, state transitions (Running, Sleeping, Zombie), and control flows across foreground, pipeline, and background execution.
