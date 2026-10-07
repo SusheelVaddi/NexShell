@@ -44,7 +44,9 @@ int main(void) {
     // Infinite loop to keep the shell running continuously
     while (1) {
         // Non-blocking check to reap any completed background processes (avoids zombies)
-        while (waitpid(-1, NULL, WNOHANG) > 0);
+        while (waitpid(-1, NULL, WNOHANG) > 0) {
+            // Reap zombie background processes
+        }
 
         // Display the NexShell prompt
         printf("NexShell> ");
