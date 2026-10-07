@@ -6,9 +6,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-// Define maximum buffer sizes for user input and arguments
+// Define maximum buffer sizes for user input, arguments, and pipeline stages
 #define MAX_INPUT_SIZE 1024
 #define MAX_ARGS 64
+#define MAX_PIPELINE_STAGES 16
 
 // Helper function to trim leading and trailing whitespace from a string
 static char *trim_whitespace(char *str) {
@@ -193,6 +194,34 @@ static void execute_child_redirection(const RedirectionInfo *redir, char **args)
     exit(1);
 }
 
+// Helper function to execute a single pipeline stage inside a child process
+static void execute_pipeline_stage(char *stage_str) {
+    RedirectionInfo redir;
+    int redir_status = parse_redirection(stage_str, &redir);
+
+    if (redir_status < 0) {
+        exit(1);
+    } else if (redir_status > 0) {
+        char *args[MAX_ARGS];
+        int arg_count = parse_command(redir.cmd_part, args, MAX_ARGS);
+        if (arg_count == 0) {
+            fprintf(stderr, "Error: Invalid command before redirection.\n");
+            exit(1);
+        }
+        execute_child_redirection(&redir, args);
+    } else {
+        char *args[MAX_ARGS];
+        int arg_count = parse_command(stage_str, args, MAX_ARGS);
+        if (arg_count == 0) {
+            fprintf(stderr, "Error: Invalid command in pipeline stage.\n");
+            exit(1);
+        }
+        execvp(args[0], args);
+        perror("execvp failed");
+        exit(1);
+    }
+}
+
 int main(void) {
     char input[MAX_INPUT_SIZE];
 
@@ -268,112 +297,139 @@ int main(void) {
             continue;
         }
 
-        // Check for pipe operator '|'
-        char *pipe_ptr = strchr(trimmed_input, '|');
-        if (pipe_ptr != NULL) {
-            // Split input into left command and right command
-            *pipe_ptr = '\0';
-            char *left_cmd_part = trim_whitespace(trimmed_input);
-            char *right_cmd_part = trim_whitespace(pipe_ptr + 1);
+        // Check for multi-stage pipeline operator '|'
+        if (strchr(trimmed_input, '|') != NULL) {
+            char *stages[MAX_PIPELINE_STAGES];
+            int num_stages = 0;
+            int syntax_error = 0;
 
-            // Validate right command part
-            if (strlen(right_cmd_part) == 0) {
-                printf("Error: Missing command after '|'.\n");
-                continue;
-            }
+            char *start = trimmed_input;
+            char *p = trimmed_input;
 
-            // Validate left command part
-            if (strlen(left_cmd_part) == 0) {
-                printf("Error: Missing command before '|'.\n");
-                continue;
-            }
-
-            // Tokenize left command part into arguments for execvp
-            char *left_args[MAX_ARGS];
-            int left_count = parse_command(left_cmd_part, left_args, MAX_ARGS);
-            if (left_count == 0) {
-                printf("Error: Invalid command before '|'.\n");
-                continue;
-            }
-
-            // Tokenize right command part into arguments for execvp
-            char *right_args[MAX_ARGS];
-            int right_count = parse_command(right_cmd_part, right_args, MAX_ARGS);
-            if (right_count == 0) {
-                printf("Error: Invalid command after '|'.\n");
-                continue;
-            }
-
-            // Create pipe file descriptors (pipe_fd[0] is read end, pipe_fd[1] is write end)
-            int pipe_fd[2];
-            if (pipe(pipe_fd) < 0) {
-                perror("pipe failed");
-                continue;
-            }
-
-            // Fork first child process for the LEFT command
-            pid_t pid1 = fork();
-            if (pid1 < 0) {
-                perror("fork failed");
-                close(pipe_fd[0]);
-                close(pipe_fd[1]);
-                continue;
-            } else if (pid1 == 0) {
-                // Left child: redirect STDOUT to pipe write end
-                if (dup2(pipe_fd[1], STDOUT_FILENO) < 0) {
-                    perror("dup2 failed");
-                    close(pipe_fd[0]);
-                    close(pipe_fd[1]);
-                    exit(1);
+            while (*p != '\0') {
+                if (*p == '|') {
+                    *p = '\0';
+                    char *stage = trim_whitespace(start);
+                    if (strlen(stage) == 0) {
+                        syntax_error = 1;
+                        break;
+                    }
+                    if (num_stages < MAX_PIPELINE_STAGES) {
+                        stages[num_stages++] = stage;
+                    } else {
+                        syntax_error = 2;
+                        break;
+                    }
+                    start = p + 1;
                 }
-
-                // Close unused pipe file descriptors in left child
-                close(pipe_fd[0]);
-                close(pipe_fd[1]);
-
-                // Execute left command
-                execvp(left_args[0], left_args);
-                perror("execvp failed");
-                exit(1);
+                p++;
             }
 
-            // Fork second child process for the RIGHT command
-            pid_t pid2 = fork();
-            if (pid2 < 0) {
-                perror("fork failed");
-                close(pipe_fd[0]);
-                close(pipe_fd[1]);
-                waitpid(pid1, NULL, 0); // Wait for first child if second fork fails
-                continue;
-            } else if (pid2 == 0) {
-                // Right child: redirect STDIN to pipe read end
-                if (dup2(pipe_fd[0], STDIN_FILENO) < 0) {
-                    perror("dup2 failed");
-                    close(pipe_fd[0]);
-                    close(pipe_fd[1]);
-                    exit(1);
+            if (!syntax_error) {
+                char *stage = trim_whitespace(start);
+                if (strlen(stage) == 0) {
+                    syntax_error = 1;
+                } else if (num_stages < MAX_PIPELINE_STAGES) {
+                    stages[num_stages++] = stage;
+                } else {
+                    syntax_error = 2;
                 }
-
-                // Close unused pipe file descriptors in right child
-                close(pipe_fd[0]);
-                close(pipe_fd[1]);
-
-                // Execute right command
-                execvp(right_args[0], right_args);
-                perror("execvp failed");
-                exit(1);
             }
 
-            // Parent process: close both ends of the pipe
-            close(pipe_fd[0]);
-            close(pipe_fd[1]);
+            if (syntax_error == 1) {
+                if (num_stages == 0) {
+                    printf("Error: Missing command before '|'.\n");
+                } else if (strlen(trim_whitespace(start)) == 0) {
+                    printf("Error: Missing command after '|'.\n");
+                } else {
+                    printf("Error: Invalid command in pipeline.\n");
+                }
+                continue;
+            } else if (syntax_error == 2) {
+                printf("Error: Exceeded maximum pipeline limit (%d stages).\n", MAX_PIPELINE_STAGES);
+                continue;
+            }
+
+            // Create (num_stages - 1) pipes
+            int pipes[MAX_PIPELINE_STAGES - 1][2];
+            int pipe_error = 0;
+            for (int i = 0; i < num_stages - 1; i++) {
+                if (pipe(pipes[i]) < 0) {
+                    perror("pipe failed");
+                    pipe_error = 1;
+                    for (int k = 0; k < i; k++) {
+                        close(pipes[k][0]);
+                        close(pipes[k][1]);
+                    }
+                    break;
+                }
+            }
+
+            if (pipe_error) {
+                continue;
+            }
+
+            pid_t pids[MAX_PIPELINE_STAGES];
+            int fork_failed_index = -1;
+
+            for (int i = 0; i < num_stages; i++) {
+                pids[i] = fork();
+
+                if (pids[i] < 0) {
+                    perror("fork failed");
+                    fork_failed_index = i;
+                    break;
+                } else if (pids[i] == 0) {
+                    // Child i process
+                    // Connect STDIN to previous pipe read end if not first stage
+                    if (i > 0) {
+                        if (dup2(pipes[i - 1][0], STDIN_FILENO) < 0) {
+                            perror("dup2 failed");
+                            exit(1);
+                        }
+                    }
+
+                    // Connect STDOUT to next pipe write end if not last stage
+                    if (i < num_stages - 1) {
+                        if (dup2(pipes[i][1], STDOUT_FILENO) < 0) {
+                            perror("dup2 failed");
+                            exit(1);
+                        }
+                    }
+
+                    // Close all pipe file descriptors in child process
+                    for (int k = 0; k < num_stages - 1; k++) {
+                        close(pipes[k][0]);
+                        close(pipes[k][1]);
+                    }
+
+                    // Execute stage command
+                    execute_pipeline_stage(stages[i]);
+                }
+            }
+
+            // Parent process: close all pipe file descriptors
+            for (int k = 0; k < num_stages - 1; k++) {
+                close(pipes[k][0]);
+                close(pipes[k][1]);
+            }
+
+            int spawn_count = (fork_failed_index >= 0) ? fork_failed_index : num_stages;
 
             if (is_background) {
-                printf("[Background process started: PIDs %d, %d]\n", pid1, pid2);
+                printf("[Background process started: PIDs");
+                for (int i = 0; i < spawn_count; i++) {
+                    printf(" %d", pids[i]);
+                    if (i < spawn_count - 1) {
+                        printf(",");
+                    }
+                }
+                printf("]\n");
             } else {
-                // Wait for both children in foreground execution
-                waitpid(pid1, NULL, 0);
-                waitpid(pid2, NULL, 0);
+                // Foreground execution: wait for all spawned pipeline child processes
+                for (int i = 0; i < spawn_count; i++) {
+                    waitpid(pids[i], NULL, 0);
+                }
             }
             continue;
         }

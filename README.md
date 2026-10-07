@@ -28,7 +28,7 @@ NexShell addresses these challenges by implementing an efficient REPL loop that 
 - **Input Redirection (`<`)**: Redirects standard input (`stdin`) to read data directly from a file, with support for standard (`cmd < file`) and tight (`cmd<file`) syntax.
 - **Dual Redirection (`<` and `>`)**: Supports simultaneous input and output redirection on a single command line (e.g., `cmd < input.txt > output.txt`, `cmd > output.txt < input.txt`, and `cmd<input.txt>output.txt`).
 - **Defensive Redirection Validation**: Validates syntax before forking; rejects repeated operators (`>>`, `<<`), missing filenames, and missing commands with clear diagnostics.
-- **Command Piping (`|`)**: Inter-process communication connecting the standard output of a left child process directly to the standard input of a right child process using POSIX `pipe()` and `dup2()`.
+- **Multi-Stage Command Piping (`|`)**: Inter-process communication connecting standard output of each command stage to standard input of the subsequent stage across multi-command pipelines (e.g., `cmd1 | cmd2 | cmd3`) using $N-1$ POSIX `pipe()` channels and $N$ child processes.
 - **Background Execution (`&`)**: Spawns commands asynchronously without blocking the parent shell prompt, immediately reporting child process IDs (PIDs).
 - **Non-blocking Zombie Process Reaping**: Automatically reaps terminated background child processes before every prompt cycle using `waitpid(-1, NULL, WNOHANG)`.
 
@@ -305,8 +305,6 @@ NexShell includes comprehensive technical documentation, architecture specificat
 ---
 
 ## 9. Limitations
-- **Single Pipe Only**: Supports single-pipe constructs (`cmd1 | cmd2`), but does not support multi-pipe chains (`cmd1 | cmd2 | cmd3`).
-- **No Operator Combinations**: Does not support combining redirection with piping on a single command line (e.g., `ls | grep test > out.txt`).
 - **No Advanced Shell Quoting**: Does not parse quotes (`"` or `'`) for preserving whitespace inside arguments.
 - **No Glob/Wildcard Expansion**: Does not expand filesystem wildcards (`*`, `?`).
 - **Simplified Job Control**: Supports asynchronous background execution (`&`), but does not include full job control commands (`jobs`, `fg`, `bg`) or interactive signal trapping (`Ctrl+C`, `Ctrl+Z`).
