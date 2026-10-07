@@ -194,7 +194,7 @@
         .dot-green { background-color: #27c93f; }
 
         .terminal-title {
-            margin-left: Auto;
+            margin-left: auto;
             margin-right: auto;
             color: var(--text-muted);
             font-size: 12px;
@@ -332,7 +332,7 @@
             <div class="grid-2">
                 <div class="card">
                     <h3 style="color: var(--accent-cyan);">🎯 Problem Statement & Objective</h3>
-                    <p style="margin-bottom: 12px;">Building a custom, light-weight Unix-like command interpreter in C to explore Linux process creation, inter-process communication, and I/O redirection.</p>
+                    <p style="margin-bottom: 12px;">Building a custom, lightweight Unix-like command interpreter in C to explore Linux process creation, inter-process communication, and I/O redirection.</p>
                     <ul>
                         <li>Platform: Linux / WSL (Ubuntu) compiled with GCC</li>
                         <li>Demonstrate real low-level POSIX system calls</li>
@@ -459,10 +459,10 @@
 <span class="prompt">NexShell></span> <span class="cmd">cd</span> <span class="arg">demo</span>
 <span class="prompt">NexShell></span> <span class="cmd">pwd</span>
 <span class="prompt">NexShell></span> <span class="cmd">cd</span> <span class="arg">..</span>
-<span class="prompt">NexShell></span> <span class="cmd">ls</span> <span class="op">></span> <span class="arg">files.txt</span>
-<span class="prompt">NexShell></span> <span class="cmd">cat</span> <span class="op"><</span> <span class="arg">files.txt</span>
+<span class="prompt">NexShell></span> <span class="cmd">ls</span> <span class="op">&gt;</span> <span class="arg">files.txt</span>
+<span class="prompt">NexShell></span> <span class="cmd">cat</span> <span class="op">&lt;</span> <span class="arg">files.txt</span>
 <span class="prompt">NexShell></span> <span class="cmd">ls</span> <span class="op">|</span> <span class="cmd">grep</span> <span class="arg">test</span>
-<span class="prompt">NexShell></span> <span class="cmd">sleep</span> <span class="arg">10</span> <span class="op">&</span>
+<span class="prompt">NexShell></span> <span class="cmd">sleep</span> <span class="arg">10</span> <span class="op">&amp;</span>
 <span class="prompt">NexShell></span> <span class="cmd">pwd</span>
 <span class="prompt">NexShell></span> <span class="cmd">exit</span>
                     </div>
@@ -575,6 +575,9 @@
                 prevSlide();
             }
         });
+
+        // Initialize on load
+        updateSlides();
     </script>
 </body>
 </html>
