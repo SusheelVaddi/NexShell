@@ -260,15 +260,31 @@ NexShell includes comprehensive technical documentation, architecture specificat
 ### Core Architecture & System Specifications
 - **[Architecture & Execution Design](docs/ARCHITECTURE.md)**: Detailed breakdown of the REPL loop, input trimming, command parsing, process synchronization, and descriptor flows.
 - **[POSIX System Call Reference](docs/SYSTEM_CALLS.md)**: Complete guide to `fork()`, `execvp()`, `waitpid()`, `pipe()`, `dup2()`, `open()`, `close()`, and `chdir()`.
+- **[Process Lifecycle Specification](docs/PROCESS_LIFECYCLE.md)**: Unified educational guide detailing process memory models, state transitions (Running, Sleeping, Zombie), and control flows across foreground, pipeline, and background execution.
+- **[IPC & File Descriptors](docs/IPC_AND_FILE_DESCRIPTORS.md)**: POSIX file descriptor table mechanics, `dup2` atomic stream redirection, and anonymous pipe buffer management.
+
+### Pipeline Subsystem (`|`)
+- **[Pipe Architecture Specification](docs/PIPE_ARCHITECTURE.md)**: Deep dive into POSIX kernel pipe ring buffers, file descriptor table evolution, process tree topology, and EOF propagation.
+- **[Pipe Code Walkthrough](docs/PIPE_CODE_WALKTHROUGH.md)**: Line-by-line technical code trace of pipeline parsing, tokenization, descriptor binding, and process synchronization in `main.c`.
+- **[Pipe Test Plan & Matrix](docs/PIPE_TEST_PLAN.md)**: Verification matrix covering 14 pipeline testing scenarios, syntax edge cases, and regression verifications.
+- **[Pipe Debugging Guide](docs/PIPE_DEBUGGING.md)**: Troubleshooting protocols for pipe hangs, unclosed write descriptors, `dup2` failures, `strace` tracing, and GDB multi-process debugging.
+- **[Piping & Background Execution Guide](docs/PIPE_AND_BACKGROUND.md)** & **[Pipe Testing Scenarios](docs/PIPE_TESTING.md)**: Quick reference overview and scenario guide.
+
+### Background Subsystem (`&`)
+- **[Background Execution Guide](docs/BACKGROUND_EXECUTION_GUIDE.md)**: Architectural analysis of asynchronous process management, zombie process lifecycle, non-blocking `WNOHANG` reaping, and POSIX job-control comparison.
+- **[Background Test Plan & Matrix](docs/BACKGROUND_TEST_PLAN.md)**: Verification matrix covering 11 background execution tests, PID reporting, prompt availability, and zombie reaping.
+- **[Background Debugging Guide](docs/BACKGROUND_DEBUGGING.md)**: Troubleshooting protocols for zombie processes (`<defunct>`), process state inspection via `/proc/<pid>/status`, and GDB fork handling.
+
+### Redirection Subsystem (`>`, `<`)
 - **[Redirection Architecture & Engineering Guide](docs/REDIRECTION_GUIDE.md)**: Deep dive into `RedirectionInfo`, lexical parsing, child stream substitution, file modes (`O_CREAT`, `O_TRUNC`, `O_RDONLY`), and descriptor isolation.
-- **[Redirection Code Walkthrough](docs/REDIRECTION_CODE_WALKTHROUGH.md)**: Line-by-line, function-by-function execution walkthrough of `parse_redirection()` and `execute_child_redirection()`.
+- **[Redirection Code Walkthrough](docs/REDIRECTION_CODE_WALKTHROUGH.md)**: Line-by-line execution walkthrough of `parse_redirection()` and `execute_child_redirection()`.
 - **[Redirection Implementation Guide](docs/REDIRECTION.md)**: Technical breakdown of child process isolation, descriptor redirection, and file mode flags.
-- **[Piping & Background Execution Guide](docs/PIPE_AND_BACKGROUND.md)**: In-depth analysis of IPC pipe buffers, dual-child concurrency, and non-blocking `WNOHANG` zombie reclamation.
+- **[Redirection Test Plan & Matrix](docs/REDIRECTION_TEST_PLAN.md)**: Comprehensive 27-scenario test verification matrix.
+- **[Redirection Reference Test Suite](tests/redirection/README.md)**: Interactive test command script and edge case reference matrix.
+- **[Redirection Testing Guide](docs/REDIRECTION_TESTING.md)**: Practical test scenarios for redirection.
+- **[Redirection Debugging & Diagnostic Guide](docs/REDIRECTION_DEBUGGING.md)**: Troubleshooting common system call errors (`ENOENT`, `EACCES`, `EBADF`) and `/proc/<pid>/fd/` inspection.
 
 ### Testing & Quality Assurance
-- **[Redirection Test Plan & Matrix](docs/REDIRECTION_TEST_PLAN.md)**: Comprehensive 27-scenario test verification matrix covering normal, tight, dual, edge case, and regression scenarios.
-- **[Redirection Reference Test Suite](tests/redirection/README.md)**: Interactive test command script and edge case reference matrix.
-- **[Redirection Testing Guide](docs/REDIRECTION_TESTING.md)**: Practical test scenarios and expected behaviors for output and input redirection.
 - **[Master Test Plan & QA Strategy](docs/TEST_PLAN.md)**: Testing objectives, test environments, boundary conditions, and acceptance criteria.
 - **[Official Test Execution Results](docs/TEST_RESULTS.md)**: Live verification logs across standardized functional and regression test cases.
 - **[Basic & Built-in Commands Test Suite](tests/basic_commands.md)**: Test specs for `pwd`, `ls`, `cd`, `mkdir`, `exit`, and whitespace sanitization.
@@ -279,11 +295,12 @@ NexShell includes comprehensive technical documentation, architecture specificat
 - **[End-to-End Integration Test Suite](tests/integration_tests.md)**: Full session lifecycle integration workflows.
 
 ### Developer & Operational Guides
-- **[Redirection Debugging & Diagnostic Guide](docs/REDIRECTION_DEBUGGING.md)**: Troubleshooting common system call errors (`ENOENT`, `EACCES`, `EBADF`), GDB child process debugging, and `/proc/<pid>/fd/` inspection.
 - **[Developer & Contributor Guide](docs/DEVELOPER_GUIDE.md)**: Instructions for adding new built-in commands, extending features, and debugging with GDB/Valgrind.
 - **[Troubleshooting & Diagnostic Guide](docs/TROUBLESHOOTING.md)**: Solutions and root-cause analyses for build errors, permission issues, WSL quirks, and GitHub auth.
 - **[3–5 Minute Jury Demonstration Script](docs/DEMO_GUIDE.md)**: Timed presentation walkthrough and talking points for project evaluators.
 - **[Limitations & Future Technical Scope](docs/LIMITATIONS_AND_FUTURE.md)**: Known architectural constraints and roadmap for multi-pipe chaining, quoting, and signal handling.
+
+---
 
 ---
 
