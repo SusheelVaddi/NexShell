@@ -252,13 +252,31 @@ To prevent descriptor exhaustion and resource leaks, file descriptors are closed
 
 ---
 
-## Technical Documentation & Guides
+## Technical Documentation & Specifications Index
 
-For in-depth architectural breakdowns and testing scenarios:
-- **[Redirection Implementation Guide](docs/REDIRECTION.md)**: Detailed breakdown of `open()`, `dup2()`, `close()`, child-process isolation, and execution flows for `ls > output.txt` and `cat < output.txt`.
-- **[Redirection Testing Scenarios](docs/REDIRECTION_TESTING.md)**: Practical test cases covering basic, tight-syntax, overwrite, and dual redirection scenarios.
-- **[Pipe and Background Implementation Guide](docs/PIPE_AND_BACKGROUND.md)**: Comprehensive breakdown of POSIX system calls (`pipe()`, `fork()`, `dup2()`, `execvp()`, `waitpid()`, `WNOHANG`) and execution flows for `ls | sort` and `sleep 10 &`.
-- **[Pipe Testing Scenarios](docs/PIPE_TESTING.md)**: Practical testing scenarios (`ls | sort`, `echo hello | cat`, `pwd | cat`, `invalid command | cat`), expected outputs, and process isolation verifications.
+NexShell includes comprehensive technical documentation, architecture specifications, test plans, and developer guides:
+
+### Core Architecture & System Specifications
+- **[Architecture & Execution Design](docs/ARCHITECTURE.md)**: Detailed breakdown of the REPL loop, input trimming, command parsing, process synchronization, and descriptor flows.
+- **[POSIX System Call Reference](docs/SYSTEM_CALLS.md)**: Complete guide to `fork()`, `execvp()`, `waitpid()`, `pipe()`, `dup2()`, `open()`, `close()`, and `chdir()`.
+- **[Redirection Implementation Guide](docs/REDIRECTION.md)**: Deep dive into child process isolation, descriptor redirection, and file mode flags (`O_WRONLY`, `O_CREAT`, `O_TRUNC`, `O_RDONLY`).
+- **[Piping & Background Execution Guide](docs/PIPE_AND_BACKGROUND.md)**: In-depth analysis of IPC pipe buffers, dual-child concurrency, and non-blocking `WNOHANG` zombie reclamation.
+
+### Testing & Quality Assurance
+- **[Master Test Plan & QA Strategy](docs/TEST_PLAN.md)**: Testing objectives, test environments, boundary conditions, and acceptance criteria.
+- **[Official Test Execution Results](docs/TEST_RESULTS.md)**: Live verification logs across 23 standardized functional and regression test cases.
+- **[Basic & Built-in Commands Test Suite](tests/basic_commands.md)**: Test specs for `pwd`, `ls`, `cd`, `mkdir`, `exit`, and whitespace sanitization.
+- **[I/O Redirection Test Suite](tests/redirection_tests.md)**: Test specs for `>`, `<`, tight syntax, dual redirection, and error handling.
+- **[Command Piping Test Suite](tests/pipe_tests.md)**: Test specs for single pipes, multi-arg pipelines, and stream filtering.
+- **[Background Execution Test Suite](tests/background_tests.md)**: Test specs for `&` asynchronous execution and zombie cleanup.
+- **[Error Handling & Edge Cases Test Suite](tests/error_tests.md)**: Test specs for missing binaries, invalid paths, and repeated operators.
+- **[End-to-End Integration Test Suite](tests/integration_tests.md)**: Full session lifecycle integration workflows.
+
+### Developer & Operational Guides
+- **[Developer & Contributor Guide](docs/DEVELOPER_GUIDE.md)**: Instructions for adding new built-in commands, extending features, and debugging with GDB/Valgrind.
+- **[Troubleshooting & Diagnostic Guide](docs/TROUBLESHOOTING.md)**: Solutions and root-cause analyses for build errors, permission issues, WSL quirks, and GitHub auth.
+- **[3–5 Minute Jury Demonstration Script](docs/DEMO_GUIDE.md)**: Timed presentation walkthrough and talking points for project evaluators.
+- **[Limitations & Future Technical Scope](docs/LIMITATIONS_AND_FUTURE.md)**: Known architectural constraints and roadmap for multi-pipe chaining, quoting, and signal handling.
 
 ---
 
